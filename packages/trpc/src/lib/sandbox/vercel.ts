@@ -32,9 +32,9 @@ export const HOST_SERVICE_PORT = SANDBOX_PORTS.hostService;
  * is active (`topUpSandboxSession`) is extended before it gets there, so this
  * is really the idle stop.
  */
-export const SESSION_TIMEOUT_MS = 4 * 60 * 60 * 1000;
-/** Extend an open workspace's session when it has less than this left. */
-const EXTEND_BELOW_MS = 60 * 60 * 1000;
+export const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
+/** Above the 10-minute client keepalive, so an open workspace is always extended in time. */
+const EXTEND_BELOW_MS = 30 * 60 * 1000;
 const MIN_TOP_UP_MS = 60 * 1000;
 /** The plan refuses to extend a session past this. */
 const SESSION_MAX_MS = 24 * 60 * 60 * 1000;
