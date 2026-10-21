@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import {
 	sandboxGateUrl,
 	sandboxHostSecret,
@@ -41,4 +42,13 @@ export async function mintSandboxGateAccess(args: {
 /** The bearer host-service in this workspace's sandbox is booted with and the gate presents. */
 export function sandboxHostSecretFor(workspaceId: string): Promise<string> {
 	return sandboxHostSecret(env.SANDBOX_GATE_SECRET, workspaceId);
+}
+
+export async function isSandboxHostSecret(
+	workspaceId: string,
+	presented: string,
+): Promise<boolean> {
+	const expected = Buffer.from(await sandboxHostSecretFor(workspaceId));
+	const given = Buffer.from(presented);
+	return expected.length === given.length && timingSafeEqual(expected, given);
 }

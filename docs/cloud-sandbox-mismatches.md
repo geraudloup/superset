@@ -418,10 +418,21 @@ Electron instance took the VM down (2026-09-11).
 `stop()`, and the platform snapshots the filesystem. The next wake boots a
 new session from that snapshot with *no processes*: uncommitted files survive,
 a running agent does not. Blaxel froze the VM instead, processes intact. So
-an unattended agent run has to finish within a session, and the idle stop
-must not fire on a workspace someone is using — which is what the open
-workspace's `wake` on every token refresh is for. Sessions cap at 24 hours on
-the plan; past that the extension is refused and the next open resumes.
+the idle stop must not fire on a workspace someone is using — which is what
+the open workspace's `wake` on every token refresh is for — nor under an
+agent that is still working. For that the box itself asks: on agent activity
+(any hook event from a terminal agent or one of its subagents, any item of a
+chat turn), at most every
+fifteen minutes, `sandbox-keepalive` in host-service POSTs
+`/api/cloud-workspaces/:id/keepalive` with its host secret, and the API tops
+the session up to a full timeout (`topUpSandboxSession`). The box then stops a
+session timeout after its agent last did anything. An agent waiting on a
+permission prompt, a hung one, and a background shell or dev server left
+running after the turn all count as idle. A single tool call that runs longer
+than the timeout without a hook event is also idle, and is stopped. Top-ups go
+through the session, never `Sandbox.extendTimeout`, which resumes a session
+that stopped meanwhile, and stop at the plan's 24-hour session cap; past that
+the session ends and the next open resumes.
 
 **A fork starts from the source's snapshot, not its live filesystem.** A
 golden is therefore a *stopped* sandbox: `promoteSandboxToEnvironment` takes

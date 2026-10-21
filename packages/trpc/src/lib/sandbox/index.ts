@@ -1,4 +1,8 @@
-export { mintSandboxGateAccess, sandboxHostSecretFor } from "./access";
+export {
+	isSandboxHostSecret,
+	mintSandboxGateAccess,
+	sandboxHostSecretFor,
+} from "./access";
 export {
 	type ReportSandboxAgentStatusOutcome,
 	reportSandboxAgentStatus,
@@ -11,6 +15,7 @@ export {
 } from "./api-credential";
 export { buildSandboxClaim } from "./claim";
 export { deriveSandboxCredentials } from "./credentials";
+export { type KeepSandboxAliveOutcome, keepSandboxAlive } from "./keepalive";
 export {
 	listRemoteBranches,
 	type RemoteBranch,

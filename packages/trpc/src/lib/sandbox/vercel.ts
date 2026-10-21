@@ -28,13 +28,16 @@ import { env } from "../../env";
 export const HOST_SERVICE_PORT = SANDBOX_PORTS.hostService;
 /**
  * A session ends after this long; the workspace's files survive and the next
- * open resumes it. A workspace someone has open is extended before it gets
- * there (`wakeSandbox`), so this is really the idle stop, and how long an
- * unattended agent run can last.
+ * open resumes it. A workspace someone has open (`wakeSandbox`) or whose agent
+ * is active (`topUpSandboxSession`) is extended before it gets there, so this
+ * is really the idle stop.
  */
-const SESSION_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+export const SESSION_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 /** Extend an open workspace's session when it has less than this left. */
 const EXTEND_BELOW_MS = 60 * 60 * 1000;
+const MIN_TOP_UP_MS = 60 * 1000;
+/** The plan refuses to extend a session past this. */
+const SESSION_MAX_MS = 24 * 60 * 60 * 1000;
 const WORKSPACE_SNAPSHOT_EXPIRATION_MS = 30 * 24 * 60 * 60 * 1000;
 /** 2 GB of memory per vCPU; disk is 64 GB regardless. */
 export const MEMORY_MB_PER_VCPU = 2048;
@@ -331,6 +334,43 @@ export async function describeSandbox(providerSandboxId: string): Promise<{
 	}
 }
 
+type ExtendableSession = {
+	expiresAt: Date | undefined;
+	currentSession(): {
+		startedAt: Date | undefined;
+		createdAt: Date;
+		extendTimeout(duration: number): Promise<void>;
+	};
+};
+
+/**
+ * Extends a running session so it ends `SESSION_TIMEOUT_MS` from now, but not
+ * past the plan's per-session cap, and returns when it ends. Goes through the
+ * session: `Sandbox.extendTimeout` resumes a session that stopped meanwhile.
+ */
+export async function topUpRunningSession(
+	sandbox: ExtendableSession,
+	now = Date.now(),
+): Promise<Date | null> {
+	const endsAt = sandbox.expiresAt?.getTime();
+	if (endsAt === undefined) return null;
+	const session = sandbox.currentSession();
+	const startedAt = (session.startedAt ?? session.createdAt).getTime();
+	const extension =
+		Math.min(now + SESSION_TIMEOUT_MS, startedAt + SESSION_MAX_MS) - endsAt;
+	if (extension > MIN_TOP_UP_MS) await session.extendTimeout(extension);
+	return sandbox.expiresAt ?? null;
+}
+
+/** Null when no session is running; never wakes one. */
+export async function topUpSandboxSession(
+	providerSandboxId: string,
+): Promise<Date | null> {
+	const sandbox = await getSandbox(providerSandboxId);
+	if (!sandbox || sandbox.status !== "running") return null;
+	return topUpRunningSession(sandbox);
+}
+
 /** Whether host-service is already serving, so a wake can skip the boot. */
 async function hostServiceAnswers(hostTarget: string): Promise<boolean> {
 	try {
@@ -621,7 +661,6 @@ export async function findSandboxSession(
 	return { session: null };
 }
 
-const SESSION_MAX_MS = 24 * 60 * 60 * 1000;
 const UNSETTLED_SANDBOX_STATUSES = new Set([
 	"pending",
 	"running",
